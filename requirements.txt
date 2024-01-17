@@ -1,3 +1,5 @@
 pinecone-client
 openai
 requests
+langchain
+tiktoken

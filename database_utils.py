@@ -1,83 +1,91 @@
 from typing import Any, Dict
-import requests
+import time
 import os
-from secrets_fundamentalclub import DATABASE_INTERFACE_BEARER_TOKEN
+from openai import OpenAI, RateLimitError
+from secrets_fundamentalclub import PINECONE_API_KEY, OPENAI_API_KEY
+from config_fundamentalclub import GENERAL_INDEX_NAME
+from pinecone import Pinecone
+import tiktoken
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Top number of results to return
 SEARCH_TOP_K = 3
 
+def tokenize(input_text: str, filename: str):
+    """
+    Tokenize a text
+    """
+    tokenizer = tiktoken.encoding_for_model('gpt-4')
+    # tokenizer = tiktoken.get_encoding(tokenizer_name)
 
-def upsert_file(directory: str):
+    def tiktoken_len(text):
+        tokens = tokenizer.encode(
+            text,
+            disallowed_special=()
+        )
+        return len(tokens)
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=20,
+        length_function=tiktoken_len,
+        separators=["\n\n", "\n", " ", ""]
+    )
+
+    texts = text_splitter.split_text(input_text)
+    chunks = [{
+        'id': filename + f'-{i}',
+        'text': texts[i],
+        'chunk': i
+    } for i in range(len(texts))]
+    return chunks
+
+def upsert_tokenized_text(chunks, batch_size = 100, embed_model = "text-embedding-ada-002"):
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+    index = pc.Index(GENERAL_INDEX_NAME)
+    # Open OpenAI client
+    oai = OpenAI(api_key=OPENAI_API_KEY)
+    from tqdm.auto import tqdm
+    for i in tqdm(range(0, len(chunks), batch_size)):
+        # find end of batch
+        i_end = min(len(chunks), i+batch_size)
+        meta_batch = chunks[i:i_end]
+        # get ids
+        ids_batch = [x['id'] for x in meta_batch]
+        # get texts to encode
+        texts = [x['text'] for x in meta_batch]
+
+        # create embeddings (try-except added to avoid RateLimitError)
+        try:
+            res = oai.embeddings.create(input=texts, model=embed_model)
+        except RateLimitError:
+            done = False
+            while not done:
+                time.sleep(5)
+                try:
+                    res = oai.embeddings.create(input=texts, model=embed_model)
+                    done = True
+                except:
+                    pass
+        embeds = [record.embedding for record in res.data]
+        meta_batch = [{
+            'text': x['text'],
+            'chunk': x['chunk']
+        } for x in meta_batch]
+        to_upsert = list(zip(ids_batch, embeds, meta_batch))
+
+        # upsert to Pinecone
+        index.upsert(vectors=to_upsert)
+    
+
+def upsert_files_in_directory(directory: str):
     """
     Upload all files under a directory to the vector database.
     """
-    url = "http://0.0.0.0:8000/upsert-file"
-    headers = {"Authorization": "Bearer " + DATABASE_INTERFACE_BEARER_TOKEN}
-    files = []
     for filename in os.listdir(directory):
-        if os.path.isfile(os.path.join(directory, filename)):
-            file_path = os.path.join(directory, filename)
-            with open(file_path, "rb") as f:
-                file_content = f.read()
-                files.append(("file", (filename, file_content, "text/plain")))
-            response = requests.post(url,
-                                     headers=headers,
-                                     files=files,
-                                     timeout=600)
-            if response.status_code == 200:
-                print(filename + " uploaded successfully.")
-            else:
-                print(
-                    f"Error: {response.status_code} {response.content} for uploading "
-                    + filename)
+        with open(os.path.join(directory, filename), "r") as f:
+            content = f.read()
+            chunks = tokenize(content, filename)
 
-
-def upsert(id: str, content: str):
-    """
-    Upload one piece of text to the database.
-    """
-    url = "http://0.0.0.0:8000/upsert"
-    headers = {
-        "accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + DATABASE_INTERFACE_BEARER_TOKEN,
-    }
-
-    data = {
-        "documents": [{
-            "id": id,
-            "text": content,
-        }]
-    }
-    response = requests.post(url, json=data, headers=headers, timeout=600)
-
-    if response.status_code == 200:
-        print("uploaded successfully.")
-    else:
-        print(f"Error: {response.status_code} {response.content}")
-
-
-def query_database(query_prompt: str) -> Dict[str, Any]:
-    """
-    Query vector database to retrieve chunk with user's input question.
-    """
-    url = "http://0.0.0.0:8000/query"
-    headers = {
-        "Content-Type": "application/json",
-        "accept": "application/json",
-        "Authorization": f"Bearer {DATABASE_INTERFACE_BEARER_TOKEN}",
-    }
-    data = {"queries": [{"query": query_prompt, "top_k": SEARCH_TOP_K}]}
-
-    response = requests.post(url, json=data, headers=headers, timeout=600)
-
-    if response.status_code == 200:
-        result = response.json()
-        # process the result
-        return result
-    else:
-        raise ValueError(f"Error: {response.status_code} : {response.content}")
-
-
-if __name__ == "__main__":
-    upsert_file("<directory_to_the_sample_data>")
+            print(f"Tokenization complete. {len(chunks)} chunks found.")
+            upsert_tokenized_text(chunks)
+            print(f"Upserted {filename} to database.")

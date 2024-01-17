@@ -160,3 +160,5 @@ cython_debug/
 #.idea/
 
 secrets_fundamentalclub.py
+config_fundamentalclub.py
+sample_data/
