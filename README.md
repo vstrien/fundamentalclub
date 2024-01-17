@@ -21,6 +21,14 @@ GENERAL_INDEX_URL = "<URL_TO_YOUR_PINECONE_INDEX>"
 GENERAL_INDEX_NAME = "<name_of_your_index>"
 ```
 
+Also, add a folder called 'sample data' with data about stocks you want to analyze. It could be anything that's remotely interesting:
+
+* Forms like 10-K, 10-Q, etc.
+* Transcripts of earnings calls
+* Letters to shareholders
+* Interesting facts about related businesses
+* Etc.
+
 ## Overall plan:
 
 * Use the `autogen` framework to create a set of bots
