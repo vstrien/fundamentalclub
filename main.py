@@ -1,7 +1,7 @@
 import logging
 import openai
 from chat_utils import ask
-from secrets import OPENAI_API_KEY
+from secrets_fundamentalclub import OPENAI_API_KEY
 
 if __name__ == "__main__":
     while True:

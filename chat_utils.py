@@ -1,8 +1,8 @@
 from typing import Any, List, Dict
 import openai
 import requests
-from secrets import DATABASE_INTERFACE_BEAR_TOKEN
-from secrets import OPENAI_API_KEY
+from secrets_fundamentalclub import DATABASE_INTERFACE_BEAR_TOKEN
+from secrets_fundamentalclub import OPENAI_API_KEY
 import logging
 
 
