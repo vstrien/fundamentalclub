@@ -4,3 +4,4 @@ requests
 langchain
 tiktoken
 python-dotenv
+autogen

@@ -1,6 +1,6 @@
 import logging
 import openai
-from chat_utils import ask
+from src.chatutils.chat_utils import ask
 import os
 import dotenv
 

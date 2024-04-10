@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "fundamentalclub"
+version = "0.1.0"
+description = "A small exercise where virtual investment advisors discuss with each other about stocks and companies"
+authors = ["Koos van Strien <koos.van.strien@wortell.nl>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pinecone-client = "^3.2.2"
+openai = "^1.16.2"
+requests = "^2.31.0"
+langchain = "^0.1.15"
+tiktoken = "^0.6.0"
+python-dotenv = "^1.0.1"
+autogen = "^1.0.16"
+docutils="^0.21.post1" # Required for autogen
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
