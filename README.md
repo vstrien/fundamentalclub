@@ -32,10 +32,18 @@ Also, add a folder called 'sample data' with data about stocks you want to analy
 ## Overall plan:
 
 * Use the `autogen` framework to create a set of bots
-  * These bots have the ability to search the internet for themselves
+  * These bots have the ability to [search the internet for themselves](https://github.com/microsoft/autogen/blob/main/notebook/agentchat_surfer.ipynb)
   * Also, operating on GPT, they do have quite some general knowledge about the world
   * Fundamental qualities of stocks don't change that much
   * Quantitative current information (for example information about cycles) can be found easily using internet searches, probably the agents can handle that
-* For fundamental analysis, reports from companies and things like earnings calls are important as well. We can solve that, if we know beforehand what companies we want to analyze:
-  * Reports and filings can be loaded on beforehand to a vector database
-* Pre-load the vector database with annual reports and other important fundamental information
+* For fundamental analysis, reports from companies and things like earnings calls are important as well. Ways to solve this:
+  * Integrate with existing stock-information API's (yfinance, interactivebrokers, ...)
+  * Web searches for reports and filings
+  * On-demand additions to the vector database
+    * Keep a list of all stocks and stored information on hand, for example:  
+
+      Stock | Report or filing | Timeframe | Date of retrieval | source URL
+      ---|---|---|---|---
+      RELL | 10-Q | FY2024 Q2 | 2024-01-11 | https://www.rell.com/webfoo/wp-content/uploads/2024/01/10Q-Q2-FY24-Final-Filed-01.11.24.docx  
+    * Load contents into the vector database
+    * Try to find more resources periodically
