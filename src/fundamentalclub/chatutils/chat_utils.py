@@ -1,10 +1,11 @@
 from typing import Any, Dict
 from openai import OpenAI
-
-client = OpenAI()
 import requests
 import dotenv
 import os
+
+client = OpenAI()
+
 
 dotenv.load_dotenv()
 DATABASE_INTERFACE_BEAR_TOKEN = os.getenv("DATABASE_INTERFACE_BEAR_TOKEN")
@@ -30,7 +31,7 @@ class ChatGPT():
         max_tokens=1024,
         temperature=0.7)
         return response.choices[0].message.content
-
+    
 class Pinecone():
     def __init__(self, bearer_token, url = "http://0.0.0.0:8000/query"):
         self.bearer_token = bearer_token

@@ -1,5 +1,9 @@
 from chatutils.chat_utils import ChatGPT
 import json
+
+def strip_markdown(text):
+    return text.replace("```json", "").replace("```", "")
+
 class Guide(ChatGPT):
     def __init__(self, api_key, ticker_name):
         super().__init__(api_key, """The GPT is a fundamental analyst, specialized in scrutinizing companies with a focus on financial stability and risk aversion. 
@@ -23,7 +27,7 @@ The GPT's responses should be tailored to reflect a cautious, detail-oriented pe
 
     def get_key_financial_indicators(self):
         if self.key_financial_indicators is None:
-            self.key_financial_indicators = json.loads(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name}. What are the key financial indicators I should be looking at? Answer with a list of key financial indicators in JSON, structured like this:
+            self.key_financial_indicators = json.loads(strip_markdown(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name} in industry {self.get_industry()}. What are the key financial indicators I should be looking at? Answer with a list of key financial indicators in JSON, structured like this:
 ```json
 {
     [
@@ -47,12 +51,12 @@ The GPT's responses should be tailored to reflect a cautious, detail-oriented pe
         }
         # , More indicators...
     ]
-}```"""))
+}```""")))
         return self.key_financial_indicators
 
     def get_risks(self):
         if self.risks is None:
-            self.risks = self.call_chatgpt_api(f"""I'm researching company {self.ticker_name}. What are the risks associated with this company? Answer with a list of risks in JSON, structured like this:
+            self.risks = json.loads(strip_markdown(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name} in industry {self.get_industry()}. What are the risks associated with this company? Answer with a list of risks in JSON, structured like this:
 ```json
 {
     [
@@ -68,12 +72,12 @@ The GPT's responses should be tailored to reflect a cautious, detail-oriented pe
         # , More risks...
     ]
 }```
-""")
+""")))
         return self.risks
 
     def get_competitors(self):
         if self.competitors is None:
-            self.competitors = self.call_chatgpt_api(f"""I'm researching company {self.ticker_name}. Who are the main competitors of this company? Answer with a list of competitors in JSON, structured like this:
+            self.competitors = json.loads(strip_markdown(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name} in industry {self.get_industry()}. Who are the main competitors of this company? Answer with a list of competitors in JSON, structured like this:
 ```json
 {
     [
@@ -88,5 +92,5 @@ The GPT's responses should be tailored to reflect a cautious, detail-oriented pe
         # , More competitors...
     ]
 }```
-""")
+""")))
         return self.competitors
