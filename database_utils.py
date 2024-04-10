@@ -1,8 +1,7 @@
-from typing import Any, Dict
 import time
+import dotenv
 import os
 from openai import OpenAI, RateLimitError
-from secrets_fundamentalclub import PINECONE_API_KEY, OPENAI_API_KEY
 from config_fundamentalclub import GENERAL_INDEX_NAME
 from pinecone import Pinecone
 import tiktoken
@@ -10,6 +9,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Top number of results to return
 SEARCH_TOP_K = 3
+dotenv.load_dotenv()
 
 def tokenize(input_text: str, filename: str):
     """
@@ -40,10 +40,10 @@ def tokenize(input_text: str, filename: str):
     return chunks
 
 def upsert_tokenized_text(chunks, batch_size = 100, embed_model = "text-embedding-ada-002"):
-    pc = Pinecone(api_key=PINECONE_API_KEY)
+    pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
     index = pc.Index(GENERAL_INDEX_NAME)
     # Open OpenAI client
-    oai = OpenAI(api_key=OPENAI_API_KEY)
+    oai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     from tqdm.auto import tqdm
     for i in tqdm(range(0, len(chunks), batch_size)):
         # find end of batch

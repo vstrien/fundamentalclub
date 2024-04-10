@@ -6,7 +6,7 @@ Needed:
   * Connected to a vector database like Pinecone
   * Connected to OpenAI
   * A setup can be found at [Enhancing ChatGPT with Infinite External Memory](https://betterprogramming.pub/enhancing-chatgpt-with-infinite-external-memory-using-vector-database-and-chatgpt-retrieval-plugin-b6f4ea16ab8)
-* A file 'secrets_fundamentalclub.py' with the following components:
+* Environment variables (or a `.env` file) with the following components:
 
 ```python
 OPENAI_API_KEY = "<your_openai_api>"
