@@ -1,5 +1,7 @@
 from typing import Any, Dict
-import openai
+from openai import OpenAI
+
+client = OpenAI()
 import requests
 import dotenv
 import os
@@ -23,13 +25,11 @@ class ChatGPT():
             "role": "user",
             "content": user_question
         }]
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            max_tokens=1024,
-            temperature=0.7,  # High temperature leads to a more creative response.
-        )
-        return response.choices[0].message["content"]
+        response = client.chat.completions.create(model="gpt-4-turbo",
+        messages=messages,
+        max_tokens=1024,
+        temperature=0.7)
+        return response.choices[0].message.content
 
 class Pinecone():
     def __init__(self, bearer_token, url = "http://0.0.0.0:8000/query"):
@@ -45,7 +45,7 @@ class Pinecone():
         """
         Query vector database to retrieve chunk with user's input questions.
         """
-        
+
         data = {"queries": [{"query": query_prompt, "top_k": 5}]}
 
         response = requests.post(self.url, json=data, headers=self.headers)
