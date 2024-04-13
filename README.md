@@ -47,3 +47,9 @@ Also, add a folder called 'sample data' with data about stocks you want to analy
       RELL | 10-Q | FY2024 Q2 | 2024-01-11 | https://www.rell.com/webfoo/wp-content/uploads/2024/01/10Q-Q2-FY24-Final-Filed-01.11.24.docx  
     * Load contents into the vector database
     * Try to find more resources periodically
+
+## Tests to add:
+
+DbBackedGuide:
+
+- [ ] Check if with data in Cosmos (mock), no call is made to ChatGPT (mock)

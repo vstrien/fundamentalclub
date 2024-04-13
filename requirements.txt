@@ -5,3 +5,4 @@ langchain
 tiktoken
 python-dotenv
 autogen
+azure.cosmos

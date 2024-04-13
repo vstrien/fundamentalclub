@@ -1,5 +1,6 @@
 from chatutils.chat_utils import ChatGPT
 import json
+from fundamentalclub.cosmos_backend import CosmosBackendFundamentalGuide
 
 def strip_markdown(text):
     return text.replace("```json", "").replace("```", "")
@@ -94,3 +95,49 @@ The GPT's responses should be tailored to reflect a cautious, detail-oriented pe
 }```
 """)))
         return self.competitors
+
+class DbBackedGuide(Guide):
+    def __init__(self, api_key, ticker_name, database: CosmosBackendFundamentalGuide):
+        super().__init__(api_key, ticker_name)
+        self.database = database
+    
+    def get_industry(self):
+        if self.industry is None:
+            self.industry = self.database.get_industry(self.ticker_name)
+        if self.industry is None or len(self.industry) == 0: ## Empty dictionary
+            self.industry = super().get_industry()
+            self.database.set_industry(self.ticker_name, self.industry)
+        return self.industry
+    
+    def get_key_financial_indicators(self):
+        if self.key_financial_indicators is None:
+            self.key_financial_indicators = self.database.get_kfis(self.ticker_name)
+        if self.key_financial_indicators is None or len(self.key_financial_indicators) == 0:
+            self.key_financial_indicators = super().get_key_financial_indicators()
+            self.database.set_kfis(self.ticker_name, self.key_financial_indicators)
+        return self.key_financial_indicators
+    
+    def get_risks(self):
+        if self.risks is None:
+            self.risks = self.database.get_risks(self.ticker_name)
+        if self.risks is None or len(self.risks) == 0:
+            self.risks = super().get_risks()
+            self.database.set_risks(self.ticker_name, self.risks)
+        return self.risks
+    
+    def get_competitors(self):
+        if self.competitors is None:
+            self.competitors = self.database.get_competitors(self.ticker_name)
+        if self.competitors is None or len(self.competitors) == 0:
+            self.competitors = super().get_competitors()
+            self.database.set_competitors(self.ticker_name, self.competitors)
+        return self.competitors
+    
+    def get_all(self):
+        return {
+            "ticker": self.ticker_name, ## "AAPL"
+            "industry": self.get_industry(),
+            "key_financial_indicators": self.get_key_financial_indicators(),
+            "risks": self.get_risks(),
+            "competitors": self.get_competitors()
+        }
