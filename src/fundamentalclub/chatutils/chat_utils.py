@@ -6,7 +6,6 @@ import os
 
 client = OpenAI()
 
-
 dotenv.load_dotenv()
 DATABASE_INTERFACE_BEAR_TOKEN = os.getenv("DATABASE_INTERFACE_BEAR_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

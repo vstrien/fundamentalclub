@@ -2,6 +2,7 @@ from fundamentalclub.fundamentalguide.guide import DbBackedGuide
 from fundamentalclub.cosmosbackend.cosmosbackend import CosmosBackendFundamentalGuide
 import os
 import dotenv
+import asyncio
 
 dotenv.load_dotenv()
 guide = DbBackedGuide(
@@ -14,4 +15,4 @@ guide = DbBackedGuide(
     )
 )
 
-guide.get_all()
+asyncio.run(guide.get_all())

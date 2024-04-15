@@ -1,7 +1,9 @@
 from fundamentalclub.chatutils.chat_utils import ChatGPT
-import json, os
+import json
+import os
 from fundamentalclub.cosmosbackend.cosmosbackend import CosmosBackendFundamentalGuide
 import logging
+import asyncio
 
 def strip_markdown(text):
     return text.replace("```json", "").replace("```", "")
@@ -26,27 +28,28 @@ class Guide(ChatGPT):
         self.competitors = None
         self.num_retries_before_failing = num_retries_before_failing
 
-    def get_industry(self):
+    async def get_industry(self):
         if self.industry is None or len(self.industry) == 0:
-            self.industry = self._get_gpt_response_with_retries(Guide.queries["GET_INDUSTRY_PROMPT"].format(ticker = self.ticker_name))
+            self.industry = await self._get_gpt_response_with_retries(Guide.queries["GET_INDUSTRY_PROMPT"].format(ticker = self.ticker_name))
         return self.industry
 
-    def get_key_financial_indicators(self):
+    async def get_key_financial_indicators(self):
         if self.key_financial_indicators is None or len(self.key_financial_indicators) == 0:
-            self.key_financial_indicators = self._get_gpt_response_with_retries(Guide.queries["GET_KFIS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
+            self.key_financial_indicators = await self._get_gpt_response_with_retries(Guide.queries["GET_KFIS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
         return self.key_financial_indicators
 
-    def get_risks(self):
+    async def get_risks(self):
         if self.risks is None or len(self.risks) == 0:
-            self.risks = self._get_gpt_response_with_retries(Guide.queries["GET_RISKS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
+            self.risks = await self._get_gpt_response_with_retries(Guide.queries["GET_RISKS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
         return self.risks
 
-    def _get_gpt_response_with_retries(self, prompt):
+    async def _get_gpt_response_with_retries(self, prompt):
+        loop = asyncio.get_event_loop()
         succeeded = False
         gpt_response = None
         n_retry = 0
         while n_retry < self.num_retries_before_failing and not succeeded:
-            gpt_response = self.call_chatgpt_api(prompt)
+            gpt_response = await loop.run_in_executor(None, self.call_chatgpt_api, prompt)
             try:
                 gpt_response = json.loads(strip_markdown(gpt_response))
                 succeeded = True
@@ -56,9 +59,9 @@ class Guide(ChatGPT):
 
         return gpt_response
 
-    def get_competitors(self):
+    async def get_competitors(self):
         if self.competitors is None or len(self.competitors) == 0:
-            self.competitors = self._get_gpt_response_with_retries(Guide.queries["GET_COMPETITORS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
+            self.competitors = await self._get_gpt_response_with_retries(Guide.queries["GET_COMPETITORS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
         return self.competitors
 
 class DbBackedGuide(Guide):
@@ -66,43 +69,50 @@ class DbBackedGuide(Guide):
         super().__init__(api_key, ticker_name)
         self.database = database
     
-    def get_industry(self):
+    async def get_industry(self):
         if self.industry is None:
             self.industry = self.database.get_industry(self.ticker_name)
         if self.industry is None or len(self.industry) == 0:
-            self.industry = super().get_industry()
+            self.industry = await super().get_industry()
             self.database.set_industry(self.ticker_name, self.industry)
         return self.industry
     
-    def get_key_financial_indicators(self):
+    async def get_key_financial_indicators(self):
         if self.key_financial_indicators is None:
             self.key_financial_indicators = self.database.get_kfis(self.ticker_name)
         if self.key_financial_indicators is None or len(self.key_financial_indicators) == 0:
-            self.key_financial_indicators = super().get_key_financial_indicators()
+            self.key_financial_indicators = await super().get_key_financial_indicators()
             self.database.set_kfis(self.ticker_name, self.key_financial_indicators)
         return self.key_financial_indicators
     
-    def get_risks(self):
+    async def get_risks(self):
         if self.risks is None:
             self.risks = self.database.get_risks(self.ticker_name)
         if self.risks is None or len(self.risks) == 0:
-            self.risks = super().get_risks()
+            self.risks = await super().get_risks()
             self.database.set_risks(self.ticker_name, self.risks)
         return self.risks
     
-    def get_competitors(self):
+    async def get_competitors(self):
         if self.competitors is None:
             self.competitors = self.database.get_competitors(self.ticker_name)
         if self.competitors is None or len(self.competitors) == 0:
-            self.competitors = super().get_competitors()
+            self.competitors = await super().get_competitors()
             self.database.set_competitors(self.ticker_name, self.competitors)
         return self.competitors
     
-    def get_all(self):
+    async def get_all(self):
+        industry_future = asyncio.ensure_future(self.get_industry())
+        kfi_future = asyncio.ensure_future(self.get_key_financial_indicators())
+        risks_future = asyncio.ensure_future(self.get_risks())
+        competitors_future = asyncio.ensure_future(self.get_competitors())
+
+        await asyncio.gather(industry_future, kfi_future, risks_future, competitors_future)
+
         return {
-            "ticker": self.ticker_name, ## "AAPL"
-            "industry": self.get_industry(),
-            "key_financial_indicators": self.get_key_financial_indicators(),
-            "risks": self.get_risks(),
-            "competitors": self.get_competitors()
+            "ticker": self.ticker_name,  # "AAPL"
+            "industry": industry_future.result(),
+            "key_financial_indicators": kfi_future.result(),
+            "risks": risks_future.result(),
+            "competitors": competitors_future.result()
         }
