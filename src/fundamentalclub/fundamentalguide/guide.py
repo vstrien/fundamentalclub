@@ -1,99 +1,64 @@
-from chatutils.chat_utils import ChatGPT
-import json
-from fundamentalclub.cosmos_backend import CosmosBackendFundamentalGuide
+from fundamentalclub.chatutils.chat_utils import ChatGPT
+import json, os
+from fundamentalclub.cosmosbackend.cosmosbackend import CosmosBackendFundamentalGuide
+import logging
 
 def strip_markdown(text):
     return text.replace("```json", "").replace("```", "")
 
 class Guide(ChatGPT):
-    def __init__(self, api_key, ticker_name):
-        super().__init__(api_key, """The GPT is a fundamental analyst, specialized in scrutinizing companies with a focus on financial stability and risk aversion. 
-It possesses a deep understanding of financial history, allowing it to provide insightful analysis and cautionary advice. 
-This GPT actively points out when users ask for inappropriate indicators for an industry or overlook crucial financial information. 
-Its primary role is to assist in making informed, cautious investment decisions by analyzing financial statements, market trends, and historical data. 
-The GPT should avoid speculative or high-risk advice and emphasize conservative, well-researched strategies. 
-It should ask for clarification when needed to ensure accurate and relevant advice. 
-The GPT's responses should be tailored to reflect a cautious, detail-oriented personality, focusing on thorough analysis and risk management.""")
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Construct the path to the queries.json file
+    queries_path = os.path.join(script_dir, 'queries.json')
+
+    with open(queries_path, "r") as file:
+        queries = json.load(file)
+
+    def __init__(self, api_key, ticker_name, num_retries_before_failing = 3):
+        super().__init__(api_key, Guide.queries["GPT_ROLE"])
         self.name = "Guide"
         self.ticker_name = ticker_name
         self.industry = None
         self.key_financial_indicators = None
         self.risks = None
         self.competitors = None
+        self.num_retries_before_failing = num_retries_before_failing
 
     def get_industry(self):
-        if self.industry is None:
-            self.industry = self.call_chatgpt_api(f"I'm researching company {self.ticker_name}. What industry is this company in? Anser with a single industry name, no further explanation.")
+        if self.industry is None or len(self.industry) == 0:
+            self.industry = self._get_gpt_response_with_retries(Guide.queries["GET_INDUSTRY_PROMPT"].format(ticker = self.ticker_name))
         return self.industry
 
     def get_key_financial_indicators(self):
-        if self.key_financial_indicators is None:
-            self.key_financial_indicators = json.loads(strip_markdown(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name} in industry {self.get_industry()}. What are the key financial indicators I should be looking at? Answer with a list of key financial indicators in JSON, structured like this:
-```json
-{
-    [
-        {
-            'indicator': 'Revenue',
-            'description': 'The total amount of money a company makes from selling goods or services.',
-            'sources': ['Income Statement'],
-            'importance': 'High',
-            'formula': 'Total Sales - Returns',
-            'formula_components': [
-            {'component': 'Total Sales', 
-                'source': 'Income Statement',
-                'aliases': ['Sales', 'Net Sales']
-            },
-            {
-                'component': 'Returns',
-                'source': 'Income Statement',
-                'aliases': ['Refunds']
-            }
-        ]
-        }
-        # , More indicators...
-    ]
-}```""")))
+        if self.key_financial_indicators is None or len(self.key_financial_indicators) == 0:
+            self.key_financial_indicators = self._get_gpt_response_with_retries(Guide.queries["GET_KFIS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
         return self.key_financial_indicators
 
     def get_risks(self):
-        if self.risks is None:
-            self.risks = json.loads(strip_markdown(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name} in industry {self.get_industry()}. What are the risks associated with this company? Answer with a list of risks in JSON, structured like this:
-```json
-{
-    [
-        {
-            'risk': 'Market Risk',
-            'description': 'The risk of an investment''s value changing due to changes in the market.',
-            'likelihood': 'High',
-            'impact': 'High',
-            'mitigation': 'Diversification',
-            'sources': ['SEC Filings', 'Financial Statements'],
-            'phrases': ['Market crash', 'Economic downturn', 'Recession']
-        }
-        # , More risks...
-    ]
-}```
-""")))
+        if self.risks is None or len(self.risks) == 0:
+            self.risks = self._get_gpt_response_with_retries(Guide.queries["GET_RISKS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
         return self.risks
 
+    def _get_gpt_response_with_retries(self, prompt):
+        succeeded = False
+        gpt_response = None
+        n_retry = 0
+        while n_retry < self.num_retries_before_failing and not succeeded:
+            gpt_response = self.call_chatgpt_api(prompt)
+            try:
+                gpt_response = json.loads(strip_markdown(gpt_response))
+                succeeded = True
+            except Exception as e:
+                logging.error(f"""Error getting response for {prompt}: {e}\nChatGPT output: {gpt_response}""")
+                n_retry += 1
+
+        return gpt_response
+
     def get_competitors(self):
-        if self.competitors is None:
-            self.competitors = json.loads(strip_markdown(self.call_chatgpt_api(f"""I'm researching company {self.ticker_name} in industry {self.get_industry()}. Who are the main competitors of this company? Answer with a list of competitors in JSON, structured like this:
-```json
-{
-    [
-        {
-            'competitor': 'Company A',
-            'description': 'Company A is a direct competitor of the company, offering similar products and services.',
-            'strengths': ['Strong brand recognition', 'Large market share'],
-            'weaknesses': ['High debt', 'Low profit margin'],
-            'sources': ['SEC Filings', 'Company Website'],
-            'stock ticker': 'A'
-        }
-        # , More competitors...
-    ]
-}```
-""")))
+        if self.competitors is None or len(self.competitors) == 0:
+            self.competitors = self._get_gpt_response_with_retries(Guide.queries["GET_COMPETITORS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
         return self.competitors
 
 class DbBackedGuide(Guide):
@@ -104,7 +69,7 @@ class DbBackedGuide(Guide):
     def get_industry(self):
         if self.industry is None:
             self.industry = self.database.get_industry(self.ticker_name)
-        if self.industry is None or len(self.industry) == 0: ## Empty dictionary
+        if self.industry is None or len(self.industry) == 0:
             self.industry = super().get_industry()
             self.database.set_industry(self.ticker_name, self.industry)
         return self.industry
