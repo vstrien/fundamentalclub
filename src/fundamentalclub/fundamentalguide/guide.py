@@ -17,6 +17,8 @@ class Guide(ChatGPT):
 
     with open(queries_path, "r") as file:
         queries = json.load(file)
+        for key in queries:
+            queries[key] = queries[key].replace("\n", " ").replace("\t", " ")
 
     def __init__(self, api_key, ticker_name, num_retries_before_failing = 3):
         super().__init__(api_key, Guide.queries["GPT_ROLE"])
@@ -27,22 +29,30 @@ class Guide(ChatGPT):
         self.risks = None
         self.competitors = None
         self.num_retries_before_failing = num_retries_before_failing
+        self.industry_lock = asyncio.Lock()
 
     async def get_industry(self):
-        if self.industry is None or len(self.industry) == 0:
-            self.industry = await self._get_gpt_response_with_retries(Guide.queries["GET_INDUSTRY_PROMPT"].format(ticker = self.ticker_name))
+        async with self.industry_lock:
+            if self.industry is None or len(self.industry) == 0:
+                loop = asyncio.get_event_loop()
+                self.industry = await loop.run_in_executor(None, self.call_chatgpt_api, Guide.queries["GET_INDUSTRY_PROMPT"].replace("{ticker}", self.ticker_name))
         return self.industry
 
     async def get_key_financial_indicators(self):
         if self.key_financial_indicators is None or len(self.key_financial_indicators) == 0:
-            self.key_financial_indicators = await self._get_gpt_response_with_retries(Guide.queries["GET_KFIS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
+            self.key_financial_indicators = await self._get_gpt_response_with_retries(Guide.queries["GET_KFIS_PROMPT"].replace("{ticker}", self.ticker_name).replace("{industry}", await self.get_industry()))
         return self.key_financial_indicators
 
     async def get_risks(self):
         if self.risks is None or len(self.risks) == 0:
-            self.risks = await self._get_gpt_response_with_retries(Guide.queries["GET_RISKS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
+            self.risks = await self._get_gpt_response_with_retries(Guide.queries["GET_RISKS_PROMPT"].replace("{ticker}", self.ticker_name).replace("{industry}", await self.get_industry()))
         return self.risks
-
+    
+    async def get_competitors(self):
+        if self.competitors is None or len(self.competitors) == 0:
+            self.competitors = await self._get_gpt_response_with_retries(Guide.queries["GET_COMPETITORS_PROMPT"].replace("{ticker}", self.ticker_name).replace("{industry}", await self.get_industry()))
+        return self.competitors
+    
     async def _get_gpt_response_with_retries(self, prompt):
         loop = asyncio.get_event_loop()
         succeeded = False
@@ -55,14 +65,12 @@ class Guide(ChatGPT):
                 succeeded = True
             except Exception as e:
                 logging.error(f"""Error getting response for {prompt}: {e}\nChatGPT output: {gpt_response}""")
+                logging.warning(f"Retrying {n_retry + 1}/{self.num_retries_before_failing}")
                 n_retry += 1
 
         return gpt_response
 
-    async def get_competitors(self):
-        if self.competitors is None or len(self.competitors) == 0:
-            self.competitors = await self._get_gpt_response_with_retries(Guide.queries["GET_COMPETITORS_PROMPT"].format(ticker_name = self.ticker_name, industry = self.get_industry()))
-        return self.competitors
+
 
 class DbBackedGuide(Guide):
     def __init__(self, api_key, ticker_name, database: CosmosBackendFundamentalGuide):
@@ -70,35 +78,43 @@ class DbBackedGuide(Guide):
         self.database = database
     
     async def get_industry(self):
+        logging.info("Getting industry")
         if self.industry is None:
             self.industry = self.database.get_industry(self.ticker_name)
         if self.industry is None or len(self.industry) == 0:
             self.industry = await super().get_industry()
             self.database.set_industry(self.ticker_name, self.industry)
+        logging.info("Finished getting industry")
         return self.industry
     
     async def get_key_financial_indicators(self):
+        logging.info("Getting key financial indicators")
         if self.key_financial_indicators is None:
             self.key_financial_indicators = self.database.get_kfis(self.ticker_name)
         if self.key_financial_indicators is None or len(self.key_financial_indicators) == 0:
             self.key_financial_indicators = await super().get_key_financial_indicators()
             self.database.set_kfis(self.ticker_name, self.key_financial_indicators)
+        logging.info("Finished getting key financial indicators")
         return self.key_financial_indicators
     
     async def get_risks(self):
+        logging.info("Getting risks")
         if self.risks is None:
             self.risks = self.database.get_risks(self.ticker_name)
         if self.risks is None or len(self.risks) == 0:
             self.risks = await super().get_risks()
             self.database.set_risks(self.ticker_name, self.risks)
+        logging.info("Finished getting risks")
         return self.risks
     
     async def get_competitors(self):
+        logging.info("Getting competitors")
         if self.competitors is None:
             self.competitors = self.database.get_competitors(self.ticker_name)
         if self.competitors is None or len(self.competitors) == 0:
             self.competitors = await super().get_competitors()
             self.database.set_competitors(self.ticker_name, self.competitors)
+        logging.info("Finished getting competitors")
         return self.competitors
     
     async def get_all(self):
